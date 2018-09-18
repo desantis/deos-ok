@@ -5,7 +5,7 @@
 </head>
 <style>
 body {
-	background-color: gray;
+	background-color: white;
 	font-smooth: never;
 	-webkit-font-smoothing : none;
 	font-family: "Monaco", monospace;
@@ -21,11 +21,12 @@ div.textwrap {
 }
 textarea {
 	display: inline-block;
-	background-color: lightyellow;
+	background-color: black;
 	font-smooth: never;
 	-webkit-font-smoothing : none;
 	font-family: "Monaco", monospace;
 	font-size: 9pt;
+	color: white;
 	width: 100%;
 	height: 100%;
 	border: none;
@@ -56,15 +57,15 @@ div.canvasbox {
 	display: inline-block;
 	width: 50%;
 	height: 100%;
-	background-color: darkgray;
+	background-color: white;
 }
 canvas {
-	width: 320px;
-	height: 320px;
+	width: 440px;
+	height: 440px;
+	top: 10%;
+	left: 55%;
 	position: absolute;
-	top: 50%;
-	left: 75%;
-	margin: -160px 0 0 -160px;
+	margin: 0 0 0 0;
 }
 div.control {
 	width: 40px;
@@ -92,8 +93,8 @@ div.full {
 	background-color: black;
 }
 canvas.full {
-	width: 480px;
-	height: 480px;
+	width: 800px;
+	height: 800px;
 	position: absolute;
 	top: 50%;
 	left: 50%;
@@ -128,7 +129,7 @@ button:focus {
 		<div class="control">
 			<img src="full.png" title="Fullscreen" onclick="fullscreen();"></img>
 		</div>
-		<canvas width="320" height="320" id="canvas"></canvas>
+		<canvas width="320px" height="320px" id="canvas" style="width:40%;height:80%"></canvas>
 		<select id="examples">
 			<option>Choose an Example...</option>
 		</select>
