@@ -1,0 +1,824 @@
+<html>
+<head>
+	<title>iKe: powered by oK</title>
+	<meta charset="UTF-8">
+</head>
+<style>
+body {
+	background-color: gray;
+	font-smooth: never;
+	-webkit-font-smoothing : none;
+	font-family: "Monaco", monospace;
+	font-size: 9pt;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+}
+div.textwrap {
+	display: inline-block;
+	width: 50%;
+	height: 100%;
+}
+textarea {
+	display: inline-block;
+	background-color: lightyellow;
+	font-smooth: never;
+	-webkit-font-smoothing : none;
+	font-family: "Monaco", monospace;
+	font-size: 9pt;
+	width: 100%;
+	height: 100%;
+	border: none;
+	border-right: 1px solid gray;
+	-moz-tab-size:4;
+	-o-tab-size:4;
+	tab-size:4;
+}
+#status {
+	position: absolute;
+	bottom: 0px;
+	left: 0px;
+	width: 50%;
+	height: 20px;
+	background-color: black;
+	color: white;
+	overflow: hidden;
+}
+div.main {
+	height: 90%;
+	width:  90%;
+	background-color: orange;
+	position: absolute;
+	left: 5%;
+	top: 5%;
+}
+div.canvasbox {
+	display: inline-block;
+	width: 50%;
+	height: 100%;
+	background-color: darkgray;
+}
+canvas {
+	width: 320px;
+	height: 320px;
+	position: absolute;
+	top: 50%;
+	left: 75%;
+	margin: -160px 0 0 -160px;
+}
+div.control {
+	width: 40px;
+	height: 40px;
+	top: 10px;
+	right: 10px;
+	position: absolute;
+	background-color: black;
+	color: white;
+	cursor: pointer;
+	border: 1px solid black;
+}
+div.control:hover{
+	background-color: gray;
+}
+div.control:active{
+	background-color: darkgray;
+}
+div.full {
+	position: fixed;
+	left: 0px;
+	top: 0px;
+	width: 100%;
+	height: 100%;
+	background-color: black;
+}
+canvas.full {
+	width: 480px;
+	height: 480px;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	margin: -240px 0 0 -240px;
+	background-color: orange;
+}
+#examples {
+	position: absolute;
+	bottom: 10px;
+	right:  10px;
+}
+input:focus,
+select:focus,
+textarea:focus,
+button:focus {
+    outline: none;
+}
+</style>
+
+<body>
+<div class="main">
+	<div class="textwrap">
+		<textarea id="editor" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">editor</textarea>
+		<div id="status"></div>
+	</div><div class="canvasbox">
+		<div class="control" style="right: 110px;">
+			<img src="img/play.png" title="Run" id="playbutton" onclick="play();"></img>
+		</div>
+		<div class="control" style="right: 60px;" >
+			<img src="img/gist.png" title="Save a Gist" onclick="share();"></img>
+		</div>
+		<div class="control">
+			<img src="img/full.png" title="Fullscreen" onclick="fullscreen();"></img>
+		</div>
+		<canvas width="320" height="320" id="canvas"></canvas>
+		<select id="examples">
+			<option>Choose an Example...</option>
+		</select>
+		<div id="bigdatawrap" style="display: none; height: 100%; width: 100%; overflow: hidden;">
+			<div style="display: table-cell; vertical-align: middle;">
+			   <pre id="bigdata" style="text-align: center;"></pre>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="full" id="fulldiv" style="display: none;">
+	<div class="control">
+		<img src="img/close.png" title="Exit Fullscreen" onclick="closefullscreen();"></img>
+	</div>
+	<canvas class="full" width="480" height="480" id="fullcanvas"></canvas>
+</div>
+<script src="oK.js"></script>
+<script src="convert.js"></script>
+<script src="text.js"></script>
+<script src="noise.js"></script>
+<script src="audio.js"></script>
+<script>
+
+// install extended math/utility functions in oK:
+
+var kajax = function(a) {
+	var url      = tojs(a[0]);
+	var verb     = tojs(a[1]);
+	var callback = a[2];
+	try {
+		var xhr = new XMLHttpRequest();
+		xhr.open(verb, url);
+		xhr.onreadystatechange = function() {
+			if (xhr.readyState != 4) { return; }
+			if (xhr.status != 200) {
+				showError("HTTP "+xhr.status+" from "+verb+":"+url);
+				return;
+			}
+			var result = tok(JSON.parse(xhr.responseText));
+			call(callback, k(3, [result]), env);
+		}
+		xhr.send();
+	}
+	catch(e) {
+		console.log(e);
+		showError("Malformed ajax request: "+verb+":"+url);
+	}
+}
+
+natives["abs"]  = 0;
+natives["tan"]  = 0;
+natives["acos"] = 0;
+natives["asin"] = 0;
+natives["atan"] = 0;
+natives["sinh"] = 0;
+natives["cosh"] = 0;
+natives["tanh"] = 0;
+
+var katan2 = function(x, y) { return k(0, Math.atan2(n(x).v, n(y).v)); }
+var kpow   = function(x, y) { return k(0, Math.pow  (n(x).v, n(y).v)); }
+var knoise = function(a)    { return k(0, perlinnoise(n(a[0]).v, n(a[1]).v, n(a[2]).v)); }
+verbs["atan2"] = [null, null, ad(katan2), ad(katan2), ad(katan2), ad(katan2), null,   null];
+verbs["pow"  ] = [null, null, ad(kpow)  , ad(kpow)  , ad(kpow)  , ad(kpow)  , null,   null];
+verbs["pn"   ] = [null, null, null,       null,       null,       null,       knoise, null];
+verbs["ajax" ] = [null, null, null,       null,       null,       null,       kajax,  null];
+
+function extendedEnv() {
+	var env = baseEnv();
+	nmonad("abs",  function(x) { return k(0, Math.abs (n(x).v)) });
+	nmonad("tan",  function(x) { return k(0, Math.tan (n(x).v)) });
+	nmonad("acos", function(x) { return k(0, Math.acos(n(x).v)) });
+	nmonad("asin", function(x) { return k(0, Math.asin(n(x).v)) });
+	nmonad("atan", function(x) { return k(0, Math.atan(n(x).v)) });
+	nmonad("sinh", function(x) { x=n(x).v; return k(0, .5*Math.exp(x)-Math.exp(-x)); });
+	nmonad("cosh", function(x) { x=n(x).v; return k(0, .5*Math.exp(x)+Math.exp(-x)); });
+	nmonad("tanh", function(x) {
+		x=n(x).v; return k(0, (Math.exp(x)-Math.exp(-x))/(Math.exp(x)+Math.exp(-x)));
+	});
+	trampoline(env, "atan2"  , ["x", "y"],      katan2);
+	trampoline(env, "pow"    , ["x", "y"],      kpow);
+	trampoline(env, "pn"     , ["x", "y", "z"], knoise);
+	trampoline(env, "ajax"   , ["x", "y", "z"], kajax);
+	env.put(ks("tr"), true, k(0, 30));
+	return env;
+}
+
+// builtin palettes
+var solarized = tok([
+	"#002b36","#073642","#586e75","#657b83","#839496","#93a1a1","#eee8d5","#fdf6e3",
+	"#b58900","#cb4b16","#dc322f","#d33682","#6c71c4","#268bd2","#2aa198","#859900",
+	"rgba(0,0,0,0)"
+]);
+var dawnbringer = tok([
+	"#140c1c","#442434","#30346d","#4e4a4e","#854c30","#346524","#d04648","#757161",
+	"#597dce","#d27d2c","#8595a1","#6daa2c","#d2aa99","#6dc2ca","#dad45e","#deeed6",
+	"rgba(0,0,0,0)"
+]);
+var windows = tok([
+	"#FFFFFF","#C0C0C0","#808080","#000000","#FF0000","#00FF00","#FFFF00","#0000FF",
+	"#FF00FF","#00FFFF","#800000","#008000","#808000","#000080","#800080","#008080",
+	"rgba(0,0,0,0)"
+]);
+var arne = tok([
+	"#000000","#9D9D9D","#FFFFFF","#BE2633","#E06F8B","#493C2B","#A46422","#EB8931",
+	"#F7E26B","#2F484E","#44891A","#A3CE27","#1B2632","#005784","#31A2F2","#B2DCEF",
+	"rgba(0,0,0,0)"
+]);
+var pico = tok([
+	"#000000","#1D2B53","#7E2553","#008751","#AB5236","#5F574F","#C2C3C7","#FFF1E8",
+	"#FF004D","#FFA300","#FFEC27","#00E436","#29ADFF","#83769C","#FF77AB","#FFCCAA",
+	"rgba(0,0,0,0)"
+]);
+var lcd = tok([
+	"#0F380F","#306230","#8BAC0F","#9BBC0F","rgba(0,0,0,0)"
+]);
+var cga = tok([
+	"#000000","#FFFFFF","#00FFFF","#FF00FF","rgba(0,0,0,0)"
+]);
+var hot = tok([
+	"#000000","#FFFFFF","#FF0000","#FFFF00","rgba(0,0,0,0)"
+]);
+var gray = tok(krange(256, function(x) {
+	var h = "0123456789ABCDEF";
+	var d = h[0|x/16]+h[x%16];
+	return "#"+d+d+d;
+}).v);
+
+var images = [];
+var rgbaPalettes = {
+	solarized:   readpal(tojs(solarized)),
+	dawnbringer: readpal(tojs(dawnbringer)),
+	windows:     readpal(tojs(windows)),
+	arne:        readpal(tojs(arne)),
+	pico:        readpal(tojs(pico)),
+	lcd:         readpal(tojs(lcd)),
+	cga:         readpal(tojs(cga)),
+	hot:         readpal(tojs(hot)),
+	gray:        readpal(tojs(gray)),
+};
+
+function frameDelay() {
+	var tr = 30;
+	try {
+		var v = env.lookup(ks("tr"), true);
+		if (v.t == 0) { tr = v.v; }
+	} catch(e) {}
+	return 1000 / tr;
+}
+
+var SCALE = 2;
+var DISPLAY_WIDTH  = 160;
+var DISPLAY_HEIGHT = 160;
+
+var running = false;
+var editor = document.getElementById("editor");
+var canvas = document.getElementById("canvas");
+var env    = extendedEnv();
+var lx     = 0;
+var ux     = 0;
+var mx     = 0;
+var my     = 0;
+var ikeys  = {};
+var frame  = 0;
+var click  = false;
+var tickTimeout = null;
+var drawTimeout = null;
+var playTimeout = null;
+
+function setDisplaySize(w, h) {
+	DISPLAY_WIDTH  = w;
+	DISPLAY_HEIGHT = h;
+	function setCanvasSize(w, h, c) {
+		c = document.getElementById(c);
+		c.width        = w;
+		c.style.width  = w;
+		c.height       = h;
+		c.style.height = h;
+		c.style.margin = ""+(-Math.floor(h/2))+"px 0 0 "+(-Math.floor(w/2))+"px";
+	}
+	setCanvasSize(w * 2, h * 2, "canvas");
+	setCanvasSize(w * 3, h * 3, "fullcanvas");
+}
+
+function loadExample() {
+	stop();
+	var examplesList = document.getElementById("examples");
+	var v = examplesList.value;
+	examplesList.blur();
+	if (v == "") { return; }
+	var xhr = new XMLHttpRequest();
+	xhr.open("GET", v);
+	xhr.onreadystatechange = function() {
+		if (xhr.readyState != 4 || xhr.status != 200) {
+			return;
+		}
+		var result = JSON.parse(xhr.responseText);
+		var stripped = result["content"].replace(/(?:\r\n|\r|\n)/g, "");
+		var decoded = window.atob(stripped);
+		editor.value = decoded;
+		setDisplaySize(160, 160);
+		play();
+	}
+	xhr.send();
+}
+function listExamples() {
+	var xhr = new XMLHttpRequest();
+	var exampledir = "https://api.github.com/repos/JohnEarnest/ok/contents/ike/examples";
+	xhr.open("GET", exampledir);
+	xhr.onreadystatechange = function() {
+		if (xhr.readyState != 4 || xhr.status != 200) {
+			return;
+		}
+		var result = JSON.parse(xhr.responseText);
+		var examples = document.getElementById("examples");
+		for(var index = 0; index < result.length; index++) {
+			var option = document.createElement("option");
+			option.text = result[index]["name"];
+			option.value = result[index]["url"];
+			examples.add(option);
+		}
+		examples.onchange = loadExample;
+	}
+	xhr.send();
+}
+listExamples();
+
+function saveBuffer() {
+	localStorage.setItem("ikebuffer", editor.value);
+}
+function loadBuffer() {
+	var editbuffer = localStorage.getItem("ikebuffer");
+	if (!editbuffer) {
+		editbuffer = "/ contents of this editor is automatically saved in local storage.";
+	}
+	editor.value = editbuffer;
+}
+loadBuffer();
+
+function showStatus(text) {
+	if (text.length > 80) { text = text.substring(0, 80) + "..."; }
+	var status = document.getElementById("status");
+	status.innerHTML = "";
+	status.appendChild(document.createTextNode(text));
+	status.style.backgroundColor = "black";
+}
+function showError(text) {
+	if (text.length > 80) { text = text.substring(0, 80) + "..."; }
+	var status = document.getElementById("status");
+	status.innerHTML = "";
+	status.appendChild(document.createTextNode(text));
+	status.style.backgroundColor = "darkred";
+}
+function showData(text) {
+	// all the lines must be padded to the same width,
+	// or else center-aligning the text in the pre tag won't look right:
+	var lines = text.split("\n");
+	var max = 0;
+	for(var z=0; z<lines.length;z++) { max = Math.max(max, lines[z].length); }
+	for(var z=0; z<lines.length;z++) { while(lines[z].length<max) { lines[z]+=" "; } }
+	text = lines.join("\n");
+
+	document.getElementById("canvas").style.display = "none";
+	document.getElementById("bigdatawrap").style.display = "table";
+	document.getElementById("bigdata").innerHTML = "";
+	document.getElementById("bigdata").appendChild(document.createTextNode(text));
+}
+function hideData() {
+	document.getElementById("canvas").style.display = "block";
+	document.getElementById("bigdatawrap").style.display = "none";
+}
+
+function ks(v)        { return { t: 2, v: v }; }
+function num(v)       { return { t: 0, v: v }; }
+function setvar(n, v) { env.put(ks(n), true, v); }
+function getvar(k)    { if (k.t != 2) { return k; } return env.lookup(k, true); }
+
+function callk(n) {
+	try { return run(env.lookup(ks(n), true).v, env); }
+	catch(e) { if (n == "draw") { showError(e.message); } }
+}
+function callko(n, x) {
+	setvars();
+	try { var v = env.lookup(ks(n), true);
+		try { return call(v, k(3, x), env); } catch(e) { console.log(e.message); }
+	} catch(e) {}
+	return k(3, []);
+}
+function callk1(n, x) {
+	return callko(n, [num(x)]);
+}
+function callk2(n, x, y) {
+	return callko(n, [num(x), num(y)]);
+}
+function setvars() {
+	setvar("w"  , num(DISPLAY_WIDTH));
+	setvar("h"  , num(DISPLAY_HEIGHT));
+	setvar("pi" , num(Math.PI));
+	setvar("f"  , num(frame));
+	setvar("mx" , num(mx));
+	setvar("my" , num(my));
+	setvar("windows",     windows);
+	setvar("solarized",   solarized);
+	setvar("dawnbringer", dawnbringer);
+	setvar("arne",        arne);
+	setvar("pico",        pico);
+	setvar("lcd",         lcd);
+	setvar("cga",         cga);
+	setvar("hot",         hot);
+	setvar("gray",        gray);
+	setvar("text", pixelfont);
+	setvar("dir", k(3, [num(lx), num(ux)]));
+	var kv = []; var e = Object.keys(ikeys); for(var z=0;z<e.length;z++) {
+		kv.push(num(parseInt(e[z])));
+	}
+	setvar("keys", k(3, kv));
+}
+
+function parsedirectives(text) {
+	text = text.split("\n");
+	var format = /^\/i ([a-zA-Z]+);([a-zA-Z]+);([^\n]+)$/;
+	var ret = [];
+	for(var z=0; z<text.length; z++) {
+		var str = text[z].trim();
+		var found = format.exec(str);
+		if (!found) { continue; }
+		ret.push({name:found[1], pal:found[2], url:found[3]});
+	}
+	return ret;
+}
+
+function readpal(pal) {
+	var g = document.createElement("canvas").getContext("2d");
+	for(var z=0; z<pal.length; z++) { g.fillStyle = pal[z]; g.fillRect(z, 0, 1, 1); }
+	var d = g.getImageData(0, 0, pal.length, 1);
+	var r = []; for(var z=0; z<pal.length; z++) {
+		r.push([d.data[z*4  ], d.data[z*4+1], d.data[z*4+2], d.data[z*4+3]]);
+	}
+	return r;
+}
+
+function bestcolor(data, index, pal) {
+	var bi = 0;
+	var bd = Number.POSITIVE_INFINITY;
+	for(var z=0; z<pal.length; z++) {
+		var dr = pal[z][0]-data[index  ];
+		var dg = pal[z][1]-data[index+1];
+		var db = pal[z][2]-data[index+2];
+		var da = pal[z][3]-data[index+3];
+		var dist = (dr*dr)+(dg*dg)+(db*db)+(da*da);
+		if (dist < bd) { bd = dist; bi = z; }
+	}
+	return bi;
+}
+
+function readimg(i, record, finished) {
+	var g = document.createElement("canvas").getContext("2d");
+	g.drawImage(i, 0, 0);
+	var d = g.getImageData(0, 0, i.width, i.height);
+	var r = [];
+	for(var y=0; y<i.height; y++) {
+		var row = [];
+		for(var x=0; x<i.width; x++) {
+			var index = (x+(y*i.width))*4;
+			row.push(bestcolor(d.data, index, rgbaPalettes[record.pal]));
+		}
+		r.push(row);
+	}
+	record.data = tok(r);
+	setvar(record.name, record.data);
+
+	for(var z=0; z<images.length; z++) { if (!images[z].data) { return; } }
+	finished();
+}
+
+function loadresources(finished) {
+	images = parsedirectives(editor.value);
+	for(var z=0; z<images.length; z++) {
+		var image = new Image();
+		image.onload = readimg.bind(null, image, images[z], finished);
+		image.crossOrigin = "anonymous";
+		image.src = images[z].url;
+	}
+	for(var z=0; z<images.length; z++) {
+		if (images[z].complete) { images[z].onload(); } // image may be cached
+	}
+	if (images.length == 0) { finished(); }
+}
+
+function play() {
+	hideData();
+	var b = document.getElementById("playbutton");
+	frame = 0;
+	b.src = "img/stop.png";
+	b.title = "Stop";
+	b.onclick = stop;
+	env = extendedEnv();
+	loadresources(function() {
+		var code = editor.value;
+		try {
+			setvars();
+			var r = run(parse(code), env);
+			paintValue(r);
+			showStatus(format(r).replace(/\n/g,";"));
+	
+			if (!env.contains(ks("draw"))) { stop(); return; }
+			if (!running) {
+				drawTimeout = setTimeout(paint, frameDelay());
+				tickTimeout = setTimeout(update, frameDelay());
+				running = true;
+				audioPlay();
+			}
+		}
+		catch(e) {
+			showError(e.message);
+			running = false;
+			if (canvas == document.getElementById("fullcanvas")) {
+				closefullscreen();
+			}
+			clearTimeout(playTimeout);
+		}
+	});
+}
+function stop() {
+	var b = document.getElementById("playbutton");
+	b.src = "img/play.png";
+	b.title = "Play";
+	b.onclick = play;
+	running = false;
+	clearTimeout(tickTimeout);
+	clearTimeout(drawTimeout);
+	clearTimeout(playTimeout);
+	audioStop();
+}
+function fullscreen() {
+	canvas = document.getElementById("fullcanvas");
+	SCALE = 3;
+	document.getElementById("fulldiv").style.display = "block";
+	play();
+}
+function closefullscreen() {
+	canvas = document.getElementById("canvas");
+	SCALE = 2;
+	document.getElementById("fulldiv").style.display = "none";
+	stop();
+}
+function share() {
+	var xhr = new XMLHttpRequest();
+	xhr.open('POST', 'https://api.github.com/gists');
+	xhr.onreadystatechange = function() {
+		if (xhr.readyState !== 4) { return; }
+		var result = JSON.parse(xhr.responseText);
+		if (xhr.status == 200 || xhr.status == 201) {
+			window.location.href = window.location.href.replace(/(ike.html|\?gist=.*)*$/, 'ike.html?gist=' + result.id);
+		}
+	}
+	xhr.send(JSON.stringify({
+		"description" : "iKE sketch",
+		"public" : true,
+		"files": { "prog.k" : { "content": editor.value } }
+	}));
+}
+function loadshared() {
+	var xhr = new XMLHttpRequest();
+	var gistId = location.search.match(/gist=(\w+)/);
+	if (!gistId) { return; }
+	xhr.open('GET', 'https://api.github.com/gists/' + gistId[1]);
+	xhr.onreadystatechange = function() {
+		if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status !== 201)) {
+			var result = JSON.parse(xhr.responseText);
+			editor.value = result.files["prog.k"].content;
+			fullscreen();
+		}
+	}
+	xhr.send();
+}
+loadshared();
+
+function getonce() {
+	try { return env.lookup(ks('once'), true); }
+	catch(e) { return k(3, []); }
+}
+
+function update() {
+	setvars();
+	var r = callko('tick', [getonce()]);
+	env.put(ks('once'), true, r);
+	if (running) { tickTimeout = setTimeout(update, frameDelay()); }
+	else { tickTimeout = null; }
+}
+
+function paint() {
+	frame++;
+	if (env.contains(ks('draw'))) {
+		var f = env.lookup(ks('draw'), true);
+		if (f.t != 5) { paintValue(f); return; }
+	}
+	paintValue(callko('draw', [getonce()]));
+}
+
+function paintValue(r) {
+	var kw = env.lookup(ks("w"), true);
+	var kh = env.lookup(ks("h"), true);
+	if (kw.t != 0) { kw.v = DISPLAY_WIDTH; }
+	if (kh.t != 0) { kh.v = DISPLAY_HEIGHT; }
+	if ((kw.v != DISPLAY_WIDTH) || (kh.v != DISPLAY_HEIGHT)) { setDisplaySize(kw.v, kh.v); }
+
+	var g = canvas.getContext("2d");
+	g.fillStyle = "#000000";
+	g.fillRect(0, 0, DISPLAY_WIDTH*SCALE, DISPLAY_HEIGHT*SCALE);
+
+	if (!r) { return; }
+	if (r.t != 3 || len(r) < 1) { return; }
+	for(var z=0; z < len(r); z++) {
+		var c = r.v[z];
+		if (c.t != 3) { continue; }
+		paintEach(g, c.v);
+	}
+	if (running) { drawTimeout = setTimeout(paint, frameDelay()); }
+	else { drawTimeout = null; }
+}
+
+function position(pos, x, y) {
+	if (len(pos) < 2) { return; }
+	if (pos.v[0].t != 0 || pos.v[1].t != 0) { return; }
+	x.push(pos.v[0].v);
+	y.push(pos.v[1].v);
+}
+
+function pixel(g, x, y, pal, i) {
+	g.fillStyle = pal[i];
+	g.fillRect(x * SCALE, y * SCALE, SCALE, SCALE);
+}
+
+function paintEach(g, v) {
+	if (v.length < 2) { return; }
+	// (position; palette; bitmap)
+	// position(s):
+	var pos = getvar(v[0]); if (pos.t != 3 && !isnull(pos).v) { return; }
+	var px = []; var py = [];
+	if      (isnull(pos).v)   {}
+	else if (len(pos) < 1)    { return; }
+	else if (pos.v[0].t == 0) { position(pos, px, py); }
+	else if (pos.v[0].t == 3) { for(var z=0; z < len(pos); z++) { position(pos.v[z], px, py); } }
+	else { return; }
+	// palette:
+	var pal = getvar(v[1]); if (pal.t == 11) { pal = cga; } if (pal.t != 3) { return; }
+	if (pal._tojs_cached === undefined)
+		pal._tojs_cached = tojs(pal);
+	var colors = pal._tojs_cached;
+	if (v.length == 2) {
+		paintEachVector(g, px, py, colors);
+		return;
+	}
+	// sprite:
+	var img = getvar(v[2]);
+	if (img.t == 0) {
+		// single pixel
+		for(var z = 0; z < px.length; z++) {
+			pixel(g, px[z], py[z], colors, img.v);
+		}
+	}
+	else if (img.t == 3 && len(img)>0 && img.v[0].t == 0) {
+		// row of pixels
+		if (px.length == 0) {
+			px.push((DISPLAY_WIDTH/2) - (len(img) / 2));
+			py.push((DISPLAY_HEIGHT/2));
+		}
+		for(var x = 0; x < len(img); x++) {
+			for(var z = 0; z < px.length; z++) {
+				pixel(g, px[z]+x, py[z], colors, img.v[x].v);
+			}
+		}
+	}
+	else if (img.t == 3) {
+		// matrix of pixels
+		if (px.length == 0) {
+			px.push((DISPLAY_WIDTH/2) - (len(img.v[0]) / 2));
+			py.push((DISPLAY_HEIGHT/2) - (len(img)      / 2));
+		}
+		for(var y = 0; y < len(img); y++) {
+			if (img.v[y].t != 3) { continue; }
+			for(var x = 0; x < len(img.v[y]); x++) {
+				for(var z = 0; z < px.length; z++) {
+					pixel(g, px[z]+x, py[z]+y, colors, img.v[y].v[x].v);
+				}
+			}
+		}
+	}
+}
+
+function paintEachVector(g, px, py, pal) {
+	if (px.length < 1) { return; }
+	g.strokeStyle = (pal.length > 0) ? pal[0] : "#FFFFFF";
+	g.fillStyle   = (pal.length > 1) ? pal[1] : "rgba(0,0,0,0)";
+	g.lineWidth = 1;
+	g.beginPath();
+	g.moveTo(px[0] * SCALE, py[0] * SCALE);
+	for(var z=1; z<px.length; z++) { g.lineTo(px[z] * SCALE, py[z] * SCALE); }
+	g.closePath();
+	g.fill();
+	g.stroke();
+}
+
+editor.onkeydown = function(event) {
+	if (event.keyCode == 13 && event.shiftKey) {
+		saveBuffer();
+		if (editor.selectionStart == editor.selectionEnd) {
+			play();
+		}
+		else {
+			setvars();
+			var code = editor.value.substring(editor.selectionStart, editor.selectionEnd);
+			try {
+				var r = format(run(parse(code), env));
+				if (running) { showStatus(r.replace(/\n/g,";")); }
+				else { showData(r); showStatus("eval "+code); }
+			}
+			catch(e) { showError(e.message); }
+		}
+		return false;
+	}
+	if (event.keyCode == 27) { // escape
+		stop();
+		return false;
+	}
+	if (event.keyCode == 9) {
+		var text  = this.value;
+		var start = this.selectionStart;
+		var end   = this.selectionEnd;
+		this.value = text.substring(0, start) + '\t' + text.substring(end);
+		this.selectionStart = this.selectionEnd = start + 1;
+		saveBuffer();
+		return false;
+	}
+	saveBuffer();
+};
+
+window.onkeyup = function(e) {
+	delete ikeys[e.keyCode];
+	if (e.keyCode == 37 || e.keyCode == 39) { lx = 0; }
+	if (e.keyCode == 38 || e.keyCode == 40) { ux = 0; }
+	if(running) { callk1("ku", e.keyCode); }
+}
+window.onkeydown = function(e) {
+	ikeys[e.keyCode] = true;
+	if(!running) { return; }
+	if (e.keyCode == 27 && canvas == document.getElementById("fullcanvas")) { // escape
+		closefullscreen(); return;
+	}
+	if (e.keyCode == 37) { lx = -1; callk1("lx",-1); }
+	if (e.keyCode == 39) { lx =  1; callk1("lx",1); }
+	if (e.keyCode == 38) { ux = -1; callk1("ux",-1); }
+	if (e.keyCode == 40) { ux =  1; callk1("ux",1); }
+	if (e.keyCode ==  8) { callk1("kb", e.keyCode); }
+	callk1("kd", e.keyCode);
+}
+window.onkeypress = function(e) {
+	var code = e.charCode;
+	if (code ==  8) { return; } // backspace is not always sent via this event, use keydown
+	if (code == 13 || code == 10) { callk1("kr", 10  ); } // normalize newlines
+	else                          { callk1("kx", code); }
+}
+canvas.onmousedown = function(e) {
+	click = true;
+	if(running) { callk2("md", Math.floor(e.offsetX/SCALE), Math.floor(e.offsetY/SCALE)); }
+	e.preventDefault();
+}
+canvas.onmouseup = function(e) {
+	click = false;
+	if(running) { callk2("mu", Math.floor(e.offsetX/SCALE), Math.floor(e.offsetY/SCALE)); }
+	e.preventDefault();
+}
+canvas.onmousemove = function(e) {
+	if(!running) { return; }
+	mx = Math.floor(e.offsetX/SCALE)
+	my = Math.floor(e.offsetY/SCALE)
+	callk2("mm", mx, my);
+	if (!click) { return; }
+	callk2("mg", mx, my);
+	e.preventDefault();
+}
+var fullcanvas = document.getElementById("fullcanvas");
+fullcanvas.onmousedown = canvas.onmousedown;
+fullcanvas.onmouseup   = canvas.onmouseup;
+fullcanvas.onmousemove = canvas.onmousemove;
+
+canvas.getContext("2d").fillStyle = "#000000";
+canvas.getContext("2d").fillRect(0, 0, 320, 320);
+showStatus("oK v"+version);
+
+</script>
+</body>
+</html>
